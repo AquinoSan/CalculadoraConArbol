@@ -35,6 +35,15 @@
             font-size: 24px;
             border-radius: 5px;
         }
+        .operation {
+            font-size: 18px;
+            color: #aaa;
+            min-height: 27px;
+        }
+        .result {
+            font-size: 24px;
+            color: white;
+        }
         .buttons {
             display: grid;
             gap: 5px;
@@ -112,7 +121,10 @@
 <body>
     <div class="container">
         <div class="calculator">
-            <div class="display" id="display">0</div>
+            <div class="display">
+                <div id="operation" class="operation"></div>
+                <div id="result" class="result">0</div>
+            </div>
             <div class="buttons">
                 <div class="top-buttons">
                     <button id="clear" onclick="clearDisplay()">C</button>
@@ -166,7 +178,8 @@
     <script>
         mermaid.initialize({ startOnLoad: true, theme: 'default' });
         
-        let display = document.getElementById('display');
+        let operation = document.getElementById('operation');
+        let result = document.getElementById('result');
         let expression = '';
 
         // Clase para crear nodos del árbol
@@ -228,7 +241,9 @@
                     while (operators.length > 0 && operators[operators.length - 1] !== '(') {
                         output.push(operators.pop());
                     }
-                    operators.pop(); // Remover '('
+                    if (operators.length > 0 && operators[operators.length - 1] === '(') {
+                        operators.pop(); // Remover '('
+                    }
                 } else {
                     while (
                         operators.length > 0 && 
@@ -249,7 +264,7 @@
             let stack = [];
             
             for (let token of output) {
-                if (!isNaN(token)) {
+                if (!isNaN(token) || token === '(' || token === ')') {
                     stack.push(new Node(token));
                 } else {
                     let node = new Node(token);
@@ -344,40 +359,41 @@
         }
 
         function appendNumber(num) {
-            if (display.textContent === '0' || display.textContent === 'Error') {
-                display.textContent = num;
+            if (expression === '0' || expression === 'Error') {
+                expression = num;
             } else {
-                display.textContent += num;
+                expression += num;
             }
-            expression = display.textContent;
-            updateTokenTable(expression);
+            updateDisplay();
         }
 
         function appendOperator(op) {
-            if (display.textContent !== 'Error') {
-                display.textContent += op;
-                expression = display.textContent;
-                updateTokenTable(expression);
+            if (expression !== 'Error') {
+                expression += op;
+                updateDisplay();
             }
         }
 
+        function updateDisplay() {
+            operation.textContent = expression;
+            updateTokenTable(expression);
+        }
+
         function clearDisplay() {
-            display.textContent = '0';
-            expression = '';
+            expression = '0';
+            operation.textContent = '';
+            result.textContent = '0';
             updateTokenTable('');
             document.getElementById('treeContainer').style.display = 'none';
         }
 
         function calculate() {
             try {
-                let result = eval(expression);
-                display.textContent = result;
-                expression = result.toString();
-                updateTokenTable(expression);
+                let calculatedResult = eval(expression);
+                result.textContent = calculatedResult;
+                // No actualizamos la expresión aquí para mantener la operación original
             } catch (e) {
-                display.textContent = 'Error';
-                expression = '';
-                updateTokenTable('');
+                result.textContent = 'Error';
             }
         }
 
@@ -397,7 +413,7 @@
                     mermaidGraph.innerHTML = result.svg;
                 });
             } else {
-                alert('Ingrese una expresión válida primero');
+                treeContainer.style.display = 'none';
             }
         }
     </script>
