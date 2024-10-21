@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Calculadora con Tokens</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #1a1a1a;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .calculator {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        .display {
+            background-color: #404040;
+            color: white;
+            padding: 10px;
+            margin-bottom: 10px;
+            text-align: right;
+            font-size: 24px;
+            border-radius: 5px;
+        }
+        .buttons {
+            display: grid;
+            gap: 5px;
+        }
+        .top-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+        .main-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+        }
+        button {
+            padding: 15px;
+            font-size: 18px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #505050;
+            color: white;
+        }
+        button:hover {
+            background-color: #606060;
+        }
+        .operator {
+            background-color: #707070;
+        }
+        #clear {
+            background-color: #ff4444;
+        }
+        #equals {
+            background-color: #ffa500;
+        }
+        .token-table {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            min-width: 300px;
+        }
+        .tree-container {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            width: 100%;
+            margin-top: 20px;
+            display: none;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #404040;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #404040;
+        }
+        .parenthesis {
+            background-color: #606060;
+        }
+        #mermaidGraph {
+            background-color: white;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="calculator">
+            <div class="display" id="display">0</div>
+            <div class="buttons">
+                <div class="top-buttons">
+                    <button id="clear" onclick="clearDisplay()">C</button>
+                    <button class="parenthesis" onclick="appendOperator('(')">(</button>
+                    <button class="parenthesis" onclick="appendOperator(')')">)</button>
+                    <button onclick="showTree()">Tree</button>
+                </div>
+                <div class="main-buttons">
+                    <button onclick="appendNumber('7')">7</button>
+                    <button onclick="appendNumber('8')">8</button>
+                    <button onclick="appendNumber('9')">9</button>
+                    <button class="operator" onclick="appendOperator('/')">/</button>
+                    
+                    <button onclick="appendNumber('4')">4</button>
+                    <button onclick="appendNumber('5')">5</button>
+                    <button onclick="appendNumber('6')">6</button>
+                    <button class="operator" onclick="appendOperator('*')">*</button>
+                    
+                    <button onclick="appendNumber('1')">1</button>
+                    <button onclick="appendNumber('2')">2</button>
+                    <button onclick="appendNumber('3')">3</button>
+                    <button class="operator" onclick="appendOperator('-')">-</button>
+                    
+                    <button onclick="appendNumber('0')">0</button>
+                    <button onclick="appendNumber('.')">.</button>
+                    <button id="equals" onclick="calculate()">=</button>
+                    <button class="operator" onclick="appendOperator('+')">+</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="token-table">
+            <table id="tokenTable">
+                <thead>
+                    <tr>
+                        <th>Token</th>
+                        <th>Tipo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="tree-container" id="treeContainer">
+            <h3>Árbol de Expresión</h3>
+            <div id="mermaidGraph"></div>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+        
+        let display = document.getElementById('display');
+        let expression = '';
+
+        // Clase para crear nodos del árbol
+        class Node {
+            constructor(value) {
+                this.value = value;
+                this.left = null;
+                this.right = null;
+            }
+        }
+
+        // Función para determinar la precedencia de operadores
+        function getPrecedence(operator) {
+            switch(operator) {
+                case '+':
+                case '-':
+                    return 1;
+                case '*':
+                case '/':
+                    return 2;
+                default:
+                    return 0;
+            }
+        }
+
+        // Función para construir el árbol de expresión
+        function buildExpressionTree(expr) {
+            if (!expr) return null;
+
+            // Separar la expresión en tokens
+            let tokens = [];
+            let currentNumber = '';
+            
+            for (let char of expr) {
+                if (!isNaN(char) || char === '.') {
+                    currentNumber += char;
+                } else {
+                    if (currentNumber !== '') {
+                        tokens.push(currentNumber);
+                        currentNumber = '';
+                    }
+                    tokens.push(char);
+                }
+            }
+            if (currentNumber !== '') {
+                tokens.push(currentNumber);
+            }
+
+            // Convertir infijo a postfijo
+            let output = [];
+            let operators = [];
+            
+            for (let token of tokens) {
+                if (!isNaN(token)) {
+                    output.push(token);
+                } else if (token === '(') {
+                    operators.push(token);
+                } else if (token === ')') {
+                    while (operators.length > 0 && operators[operators.length - 1] !== '(') {
+                        output.push(operators.pop());
+                    }
+                    operators.pop(); // Remover '('
+                } else {
+                    while (
+                        operators.length > 0 && 
+                        operators[operators.length - 1] !== '(' &&
+                        getPrecedence(operators[operators.length - 1]) >= getPrecedence(token)
+                    ) {
+                        output.push(operators.pop());
+                    }
+                    operators.push(token);
+                }
+            }
+            
+            while (operators.length > 0) {
+                output.push(operators.pop());
+            }
+
+            // Construir árbol a partir de la expresión postfija
+            let stack = [];
+            
+            for (let token of output) {
+                if (!isNaN(token)) {
+                    stack.push(new Node(token));
+                } else {
+                    let node = new Node(token);
+                    node.right = stack.pop();
+                    node.left = stack.pop();
+                    stack.push(node);
+                }
+            }
+
+            return stack[0];
+        }
+
+        // Función para generar el diagrama Mermaid
+        function generateMermaidDiagram(node, nodeId = 0) {
+            if (!node) return { diagram: '', lastId: nodeId };
+
+            let diagram = 'graph TD\n';
+            let currentId = nodeId;
+
+            function traverse(node, id) {
+                if (!node) return { lastId: id, nodeId: null };
+
+                let currentNodeId = `node${id}`;
+                diagram += `${currentNodeId}["${node.value}"]\n`;
+
+                if (node.left) {
+                    let leftResult = traverse(node.left, id + 1);
+                    diagram += `${currentNodeId} --> node${id + 1}\n`;
+                    id = leftResult.lastId;
+                }
+
+                if (node.right) {
+                    let rightResult = traverse(node.right, id + 1);
+                    diagram += `${currentNodeId} --> node${id + 1}\n`;
+                    id = rightResult.lastId;
+                }
+
+                return { lastId: id, nodeId: currentNodeId };
+            }
+
+            traverse(node, currentId);
+            return diagram;
+        }
+
+        function updateTokenTable(expr) {
+            const tokenTable = document.querySelector('#tokenTable tbody');
+            tokenTable.innerHTML = '';
+            
+            if (!expr || expr === '0') return;
+
+            let currentNumber = '';
+            
+            for (let i = 0; i < expr.length; i++) {
+                let char = expr[i];
+                
+                if (!isNaN(char) || char === '.') {
+                    currentNumber += char;
+                    if (i === expr.length - 1 || isNaN(expr[i + 1]) && expr[i + 1] !== '.') {
+                        addTokenRow(currentNumber, 'Número');
+                        currentNumber = '';
+                    }
+                } else {
+                    switch(char) {
+                        case '(':
+                            addTokenRow(char, 'Paréntesis izquierdo');
+                            break;
+                        case ')':
+                            addTokenRow(char, 'Paréntesis derecho');
+                            break;
+                        case '+':
+                            addTokenRow(char, 'Operador suma');
+                            break;
+                        case '-':
+                            addTokenRow(char, 'Operador resta');
+                            break;
+                        case '*':
+                            addTokenRow(char, 'Operador multiplicación');
+                            break;
+                        case '/':
+                            addTokenRow(char, 'Operador división');
+                            break;
+                    }
+                }
+            }
+        }
+
+        function addTokenRow(token, type) {
+            const tokenTable = document.querySelector('#tokenTable tbody');
+            const row = tokenTable.insertRow();
+            row.insertCell(0).textContent = token;
+            row.insertCell(1).textContent = type;
+        }
+
+        function appendNumber(num) {
+            if (display.textContent === '0' || display.textContent === 'Error') {
+                display.textContent = num;
+            } else {
+                display.textContent += num;
+            }
+            expression = display.textContent;
+            updateTokenTable(expression);
+        }
+
+        function appendOperator(op) {
+            if (display.textContent !== 'Error') {
+                display.textContent += op;
+                expression = display.textContent;
+                updateTokenTable(expression);
+            }
+        }
+
+        function clearDisplay() {
+            display.textContent = '0';
+            expression = '';
+            updateTokenTable('');
+            document.getElementById('treeContainer').style.display = 'none';
+        }
+
+        function calculate() {
+            try {
+                let result = eval(expression);
+                display.textContent = result;
+                expression = result.toString();
+                updateTokenTable(expression);
+            } catch (e) {
+                display.textContent = 'Error';
+                expression = '';
+                updateTokenTable('');
+            }
+        }
+
+        function showTree() {
+            const treeContainer = document.getElementById('treeContainer');
+            const mermaidGraph = document.getElementById('mermaidGraph');
+            
+            if (expression && expression !== '0' && expression !== 'Error') {
+                const tree = buildExpressionTree(expression);
+                const diagram = generateMermaidDiagram(tree);
+                
+                mermaidGraph.innerHTML = '';
+                treeContainer.style.display = 'block';
+                
+                // Renderizar el diagrama Mermaid
+                mermaid.render('mermaid-graph', diagram).then(result => {
+                    mermaidGraph.innerHTML = result.svg;
+                });
+            } else {
+                alert('Ingrese una expresión válida primero');
+            }
+        }
+    </script>
+</body>
+</html>
